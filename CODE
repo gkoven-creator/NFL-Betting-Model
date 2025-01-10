@@ -184,6 +184,7 @@ final_table['line_adj_pa'] = ((((final_table['Model Line'] / 2) + final_table['G
 
 final_table["Targets"] = final_table["Target Share"] * final_table["line_adj_pa"]
 # adjust (-0.025) if playing a good corner
+# adjust (+0.01) if playing a leaky corner
 # adjust (+0.025) if top receiver is out
 # adjust based on severity of weather
 
