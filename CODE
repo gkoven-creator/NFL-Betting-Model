@@ -178,9 +178,19 @@ target_share_table['G_adj_pa'] = target_share_table['G_adj_pa'].astype(float)
 
 final_table = pd.merge(spreads_df, target_share_table, on='Team')
 
-final_table['line_adj_pa'] = (((final_table['Model Line'] / 2) + final_table['G_adj_pa']) * 2 + 33) / 3
+final_table['line_adj_pa'] = ((((final_table['Model Line'] / 2) + final_table['G_adj_pa']) * 2 + 33) / 3)
+# adjust accordingly for a backup QB
+# adjust (-1, -3, -5, -7) based on severity of weather
+
 final_table["Targets"] = final_table["Target Share"] * final_table["line_adj_pa"]
+# adjust (-0.025) if playing a good corner
+# adjust (+0.025) if top receiver is out
+# adjust based on severity of weather
+
 final_table["Receptions"] = ((final_table["Ctch%"] * 0.01) - 0.02) * final_table["Targets"]
+# adjust based on severity of weather
+
 final_table["Receiving Yards"] = final_table["Receptions"] * (final_table["Y/R"] - 1)
+# adjust based on severity of weather
 
 final_table
