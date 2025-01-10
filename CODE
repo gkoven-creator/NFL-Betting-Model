@@ -183,4 +183,4 @@ final_table["Targets"] = final_table["Target Share"] * final_table["line_adj_pa"
 final_table["Receptions"] = ((final_table["Ctch%"] * 0.01) - 0.02) * final_table["Targets"]
 final_table["Receiving Yards"] = final_table["Receptions"] * (final_table["Y/R"] - 1)
 
-print(final_table)
+final_table
