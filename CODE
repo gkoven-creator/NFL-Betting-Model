@@ -1,1 +1,186 @@
+import pandas as pd
+import requests
+from io import StringIO
 
+url = "https://www.pro-football-reference.com/years/2024/receiving.htm"
+
+response = requests.get(url)
+response.raise_for_status()
+
+html_data = StringIO(response.text)
+
+tables = pd.read_html(html_data)
+receiving_table = tables[0]
+
+receiving_table.columns = receiving_table.columns.get_level_values(1)
+
+if 'Team' in receiving_table.columns:
+    receiving_table['Team'] = receiving_table['Team'].replace({
+        'CIN': 'Cincinnati',
+        'DET': 'Detroit',
+        'LVR': 'Las Vegas',
+        'ARI': "Arizona",
+        "NYG": "NY Giants",
+        "TAM": "Tampa Bay",
+        "CAR": "Carolina",
+        "SEA": "Seattle",
+        "CLE": "Cleveland",
+        "BUF": "Buffalo",
+        "MIA": "Miami",
+        "NWE": "New England",
+        "NYJ": "NY Jets",
+        "KAN": "Kansas City",
+        "DEN": "Denver",
+        "LAC": "LA Chargers",
+        "PIT": "Pittsburgh",
+        "BAL": "Baltimore",
+        "IND": "Indianapolis",
+        "HOU": "Houston",
+        "JAX": "Jacksonville",
+        "TEN": "Tennessee",
+        "PHI": "Philadelphia",
+        "DAL": "Dallas",
+        "WAS": "Washington",
+        "LAR": "LA Rams",
+        "SFO": "San Francisco",
+        "MIN": "Minnesota",
+        "CHI": "Chicago",
+        "GNB": "Green Bay",
+        "ATL": "Atlanta",
+        "NOR": "New Orleans"
+    })
+
+receiving_table['Tgt'] = pd.to_numeric(receiving_table['Tgt'], errors='coerce')
+receiving_table['G'] = pd.to_numeric(receiving_table['G'], errors='coerce')
+
+receiving_table['Tgt_per_G'] = receiving_table['Tgt'] / receiving_table['G']
+
+filtered_receiving_table = receiving_table[['Player', 'Team', 'Tgt_per_G']]
+
+url = "https://www.teamrankings.com/nfl/stat/average-scoring-margin"
+
+response = requests.get(url)
+response.raise_for_status()
+
+html_data = StringIO(response.text)
+
+tables = pd.read_html(html_data)
+scoring_margin_table = tables[0]
+
+url = "https://www.teamrankings.com/nfl/stat/pass-attempts-per-game"
+
+response = requests.get(url)
+response.raise_for_status()
+
+html_data = StringIO(response.text)
+
+tables = pd.read_html(html_data)
+pass_attempts_table = tables[0]
+
+table1 = scoring_margin_table.rename(columns={'Team': 'Team'})
+table2 = pass_attempts_table.rename(columns={'Team': 'Team'})
+
+merged_table = pd.merge(table1, table2, on='Team', suffixes=('_t1', '_t2'))
+
+merged_table['AdjPA'] = (merged_table['2024_t1'] / 2) + merged_table['2024_t2']
+merged_table['AdjPA_past3'] = (merged_table['Last 3_t1'] / 2) + merged_table['Last 3_t2']
+
+merged_table['Mean_AdjPA'] = (merged_table['AdjPA'] * 3 + merged_table['AdjPA_past3']) / 4
+
+sorted_table = merged_table.sort_values(by='Team', ascending=True)
+
+receiving_table_subset = receiving_table[['Player', 'Team', 'Tgt_per_G', 'Y/R', 'Ctch%']]
+
+merged_receiving = pd.merge(receiving_table_subset, sorted_table, on='Team', how='inner')
+
+merged_receiving['Target Share'] = merged_receiving['Tgt_per_G'] / merged_receiving['2024_t2']
+
+target_share_table = merged_receiving[['Player', 'Team', 'Target Share', 'Y/R', 'Ctch%']].copy()
+
+for col in ['Target Share', 'Y/R', 'Ctch%']:
+    target_share_table.loc[:, col] = target_share_table[col].astype(float)
+
+url = "https://www.nfeloapp.com/games/"
+response = requests.get(url)
+response.raise_for_status()
+
+html_content = StringIO(response.text)
+
+tables = pd.read_html(html_content)
+
+all_tables_combined = pd.concat(tables, ignore_index=True)
+
+columns_to_keep = [1, 2, 3]
+spreads_df = all_tables_combined[columns_to_keep].copy()
+
+spreads_df.columns = ['Team', 'Market Line', 'Model Line']
+
+for i in range(0, len(spreads_df), 2):
+    if i + 1 < len(spreads_df):
+        if pd.isna(spreads_df.loc[i, 'Market Line']) and not pd.isna(spreads_df.loc[i + 1, 'Market Line']):
+            spreads_df.loc[i, 'Market Line'] = abs(spreads_df.loc[i + 1, 'Market Line'])
+        elif not pd.isna(spreads_df.loc[i, 'Market Line']) and pd.isna(spreads_df.loc[i + 1, 'Market Line']):
+            spreads_df.loc[i + 1, 'Market Line'] = abs(spreads_df.loc[i, 'Market Line'])
+
+        if pd.isna(spreads_df.loc[i, 'Model Line']) and not pd.isna(spreads_df.loc[i + 1, 'Model Line']):
+            spreads_df.loc[i, 'Model Line'] = abs(spreads_df.loc[i + 1, 'Model Line'])
+        elif not pd.isna(spreads_df.loc[i, 'Model Line']) and pd.isna(spreads_df.loc[i + 1, 'Model Line']):
+            spreads_df.loc[i + 1, 'Model Line'] = abs(spreads_df.loc[i, 'Model Line'])
+
+if 'Team' in spreads_df.columns:
+    spreads_df['Team'] = spreads_df['Team'].replace({
+        'Bengals': 'Cincinnati',
+        'Lions': 'Detroit',
+        'Raiders': 'Las Vegas',
+        'Cardinals': "Arizona",
+        "Giants": "NY Giants",
+        "Buccaneers": "Tampa Bay",
+        "Panthers": "Carolina",
+        "Seahawks": "Seattle",
+        "Browns": "Cleveland",
+        "Bills": "Buffalo",
+        "Dolphins": "Miami",
+        "Patriots": "New England",
+        "Jets": "NY Jets",
+        "Chiefs": "Kansas City",
+        "Broncos": "Denver",
+        "Chargers": "LA Chargers",
+        "Steelers": "Pittsburgh",
+        "Ravens": "Baltimore",
+        "Colts": "Indianapolis",
+        "Texans": "Houston",
+        "Jaguars": "Jacksonville",
+        "Titans": "Tennessee",
+        "Eagles": "Philadelphia",
+        "Cowboys": "Dallas",
+        "Commanders": "Washington",
+        "Rams": "LA Rams",
+        "49ers": "San Francisco",
+        "Vikings": "Minnesota",
+        "Bears": "Chicago",
+        "Packers": "Green Bay",
+        "Falcons": "Atlanta",
+        "Saints": "New Orleans"
+    })
+
+spreads_df['Market Line'] = pd.to_numeric(spreads_df['Market Line'], errors='coerce')
+spreads_df['Model Line'] = pd.to_numeric(spreads_df['Model Line'], errors='coerce')
+
+spreads_df.to_csv("nfelo_fixed_columns.csv", index=False)
+
+mean_adjpa_table = merged_table[['Team', 'Mean_AdjPA']]
+
+target_share_table = pd.merge(target_share_table, mean_adjpa_table, on='Team', how='left')
+
+target_share_table.rename(columns={'Mean_AdjPA': 'G_adj_pa'}, inplace=True)
+
+target_share_table['G_adj_pa'] = target_share_table['G_adj_pa'].astype(float)
+
+final_table = pd.merge(spreads_df, target_share_table, on='Team')
+
+final_table['line_adj_pa'] = (((final_table['Model Line'] / 2) + final_table['G_adj_pa']) * 2 + 33) / 3
+final_table["Targets"] = final_table["Target Share"] * final_table["line_adj_pa"]
+final_table["Receptions"] = ((final_table["Ctch%"] * 0.01) - 0.02) * final_table["Targets"]
+final_table["Receiving Yards"] = final_table["Receptions"] * (final_table["Y/R"] - 1)
+
+print(final_table)
